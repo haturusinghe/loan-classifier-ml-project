@@ -389,3 +389,98 @@ def save_results_table(results_df: pd.DataFrame, path: str) -> None:
     """Save the comparison results DataFrame to CSV."""
     results_df.drop(columns=["best_params"]).to_csv(path, index=False)
     print(f"Saved results table → {path}")
+
+
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
+
+def plot_roc_curve(search, X, y, title: str = "ROC Curve"):
+    """
+    Plot ROC curve for the best estimator in a fitted GridSearchCV.
+
+    Works for any classifier that implements predict_proba() or decision_function().
+    """
+    best = search.best_estimator_
+
+    # Get predicted probabilities or decision scores
+    if hasattr(best, "predict_proba"):
+        y_scores = best.predict_proba(X)[:, 1]
+    else:
+        # e.g. some SVM configs — decision_function returns signed distance
+        y_scores = best.decision_function(X)
+
+    fpr, tpr, _ = roc_curve(y, y_scores)
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure(figsize=(6, 6))
+    plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
+    plt.plot([0, 1], [0, 1], "k--", label="Random")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title(title)
+    plt.legend(loc="lower right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+def plot_confusion_matrix(search, X, y, title: str = "Confusion Matrix"):
+    """
+    Plot confusion matrix heatmap for a fitted GridSearchCV.
+    """
+    best = search.best_estimator_
+    y_pred = best.predict(X)
+
+    cm = confusion_matrix(y, y_pred)
+    labels = ["Not repaid (0)", "Repaid (1)"]
+
+    plt.figure(figsize=(5, 4))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=labels,
+        yticklabels=labels,
+    )
+    plt.xlabel("Predicted label")
+    plt.ylabel("True label")
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+
+from sklearn.metrics import classification_report
+
+def classification_report_markdown(search, X, y) -> str:
+    """
+    Generate a classification_report and return it as a Markdown table string.
+
+    Useful for pasting directly into the assignment report.
+    """
+    best = search.best_estimator_
+    y_pred = best.predict(X)
+
+    report_dict = classification_report(y, y_pred, output_dict=True, zero_division=0)
+
+    # Build Markdown table manually
+    headers = ["Class", "Precision", "Recall", "F1-score", "Support"]
+    lines = ["| " + " | ".join(headers) + " |", "|" + " --- |" * len(headers)]
+
+    for label in ["0", "1", "macro avg", "weighted avg"]:
+        metrics = report_dict[label]
+        line = "| {cls} | {p:.3f} | {r:.3f} | {f1:.3f} | {s:.0f} |".format(
+            cls=label,
+            p=metrics["precision"],
+            r=metrics["recall"],
+            f1=metrics["f1-score"],
+            s=metrics["support"],
+        )
+        lines.append(line)
+
+    markdown = "\n".join(lines)
+    return markdown
